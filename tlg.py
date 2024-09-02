@@ -1,50 +1,66 @@
-import requests
-import schedule
-import time
+function telegramBot() {
+  var token = "7537654028:AAGwxMPjGEhmH4A7Gbx72jkRxRtG24L5_d4";
+  var chatId = "-1007537654028";
+  var url = "https://api.telegram.org/bot" + token;
+  
+  // Request to get updates from the bot
+  var options = {
+    'method': 'get',
+    'headers': {
+      'Content-Type': 'application/json'
+    },
+    'muteHttpExceptions': true
+  };
 
-# Set your bot's token here
-TOKEN = "YOUR_BOT_TOKEN"
+  var response = UrlFetchApp.fetch(url + "/getUpdates", options);
+  var json = JSON.parse(response.getContentText());
 
-# Set your chat ID here
-CHAT_ID = "YOUR_CHAT_ID"
-
-# Telegram API URL
-URL = f"https://api.telegram.org/bot{TOKEN}"
-
-def get_updates():
-    response = requests.get(f"{URL}/getUpdates")
-    return response.json()
-
-def send_message(chat_id, text):
-    payload = {'chat_id': chat_id, 'text': text}
-    response = requests.post(f"{URL}/sendMessage", json=payload)
-    return response.json()
-
-def handle_updates():
-    updates = get_updates()
+  // Loop through each update
+  for (var i in json.result) {
+    var update = json.result[i];
     
-    for update in updates.get('result', []):
-        message = update.get('message', {})
-        text = message.get('text', '')
-        
-        if text.startswith("/search"):
-            search_term = text[8:].strip()
-            search_results = search_google(search_term)
-            
-            send_message(CHAT_ID, search_results)
+    if (update.message != null && update.message.text != null && update.message.text.startsWith("/search")) {
+      var searchQuery = update.message.text.substring(8).trim(); // Extract search query
+      var searchResult = performSearch(searchQuery);
+      
+      // Send the result back to Telegram
+      var postOptions = {
+        'method': 'post',
+        'headers': {
+          'Content-Type': 'application/json'
+        },
+        'muteHttpExceptions': true,
+        'payload': JSON.stringify({
+          'chat_id': update.message.chat.id,
+          'text': searchResult
+        })
+      };
 
-def search_google(query):
-    # Google search URL (this is a placeholder, Google does not provide a public API for search)
-    search_url = "https://www.google.com/search"
-    response = requests.get(search_url, params={'q': query})
-    
-    # Extracting text from the search result page is complex and not recommended for scraping
-    # Placeholder for extracted results
-    return "Search results are not available via Google API."
+      UrlFetchApp.fetch(url + "/sendMessage", postOptions);
+    }
+  }
+}
 
-# Schedule the bot to run every minute
-schedule.every(1).minute.do(handle_updates)
+function performSearch(query) {
+  var cx = "YOUR_SEARCH_ENGINE_ID"; // Google Custom Search Engine ID
+  var apiKey = "YOUR_API_KEY"; // Google API Key
+  var searchUrl = "https://www.googleapis.com/customsearch/v1?q=" + encodeURIComponent(query) + "&key=" + apiKey + "&cx=" + cx;
 
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+  var options = {
+    'method': 'get',
+    'muteHttpExceptions': true
+  };
+
+  var response = UrlFetchApp.fetch(searchUrl, options);
+  var json = JSON.parse(response.getContentText());
+
+  if (json.items && json.items.length > 0) {
+    var firstResult = json.items[0];
+    return "Title: " + firstResult.title + "\n" + "Link: " + firstResult.link;
+  } else {
+    return "No results found.";
+  }
+}
+
+// Run the bot every minute
+ScriptApp.newTrigger('telegramBot').timeBased().everyMinutes(1).create();
